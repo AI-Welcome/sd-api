@@ -3,6 +3,8 @@ import io
 import os
 import time
 import datetime
+
+import urllib3
 import uvicorn
 import ipaddress
 import requests
@@ -34,6 +36,32 @@ import piexif
 import piexif.helper
 from contextlib import closing
 
+import requests
+import base64
+import io
+
+class Cloud:
+
+    bucket_name = 'eden-image-storage'
+
+    def upload_file(self, b64data: str) -> str:
+        object_name = f"{int(time.time())}.png"
+        headers = {
+            'Content-Type': 'image/png',
+        }
+        url = f"https://storage.googleapis.com/upload/storage/v1/b/{self.bucket_name}/o?uploadType=media&name={object_name}"
+        
+        # Convert base64 to binary
+        image_data = base64.b64decode(b64data)
+        response = requests.post(url, data=io.BytesIO(image_data), headers=headers)
+
+        if response.status_code != 200:
+            raise Exception(f"Failed to upload file: {response.text}")
+
+        return response.json().get('mediaLink')
+
+# Usage
+cloud = Cloud()
 
 def script_name_to_index(name, scripts):
     try:
@@ -383,8 +411,12 @@ class Api:
                     shared.total_tqdm.clear()
 
         b64images = list(map(encode_pil_to_base64, processed.images)) if send_images else []
-
-        return models.TextToImageResponse(images=b64images, parameters=vars(txt2imgreq), info=processed.js())
+        print(b64images[0])
+        new_b64images = []
+        for image in b64images:
+            image_url = cloud.upload_file(image)
+            new_b64images.append(image_url)
+        return models.TextToImageResponse(images=new_b64images, parameters=vars(txt2imgreq), info=processed.js())
 
     def img2imgapi(self, img2imgreq: models.StableDiffusionImg2ImgProcessingAPI):
         init_images = img2imgreq.init_images
