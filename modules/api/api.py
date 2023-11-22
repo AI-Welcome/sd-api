@@ -411,11 +411,14 @@ class Api:
                     shared.total_tqdm.clear()
 
         b64images = list(map(encode_pil_to_base64, processed.images)) if send_images else []
-        print(b64images[0])
         new_b64images = []
-        for image in b64images:
-            image_url = cloud.upload_file(image)
+        if(len(b64images) > 1):
+            image_url = cloud.upload_file(b64images[0])
             new_b64images.append(image_url)
+        else:
+            image_url = cloud.upload_file(b64images[0])
+            new_b64images.append(image_url)
+        print(new_b64images)
         return models.TextToImageResponse(images=new_b64images, parameters=vars(txt2imgreq), info=processed.js())
 
     def img2imgapi(self, img2imgreq: models.StableDiffusionImg2ImgProcessingAPI):
@@ -490,8 +493,10 @@ class Api:
 
         with self.queue_lock:
             result = postprocessing.run_extras(extras_mode=0, image_folder="", input_dir="", output_dir="", save_output=False, **reqDict)
-
-        return models.ExtrasSingleImageResponse(image=encode_pil_to_base64(result[0][0]), html_info=result[1])
+            
+        image_url = cloud.upload_file(encode_pil_to_base64(result[0][0]))
+        print(image_url)
+        return models.ExtrasSingleImageResponse(image=image_url, html_info=result[1])
 
     def extras_batch_images_api(self, req: models.ExtrasBatchImagesRequest):
         reqDict = setUpscalers(req)
